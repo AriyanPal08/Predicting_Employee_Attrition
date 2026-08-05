@@ -9,12 +9,19 @@
 *.pfx
 *.secret
 *.secrets
+*.credentials
+*.credential
 *api_key*
 *apikey*
 *token*
 *password*
+*secret*
+*credential*
+*service-account*.json
+*service_account*.json
 secrets/
 credentials/
+.secrets/
 
 # Jupyter temporary files
 .ipynb_checkpoints/
@@ -30,6 +37,9 @@ reports/_build/
 *.csv
 *.tsv
 *.parquet
+data/
+datasets/
+raw_data/
 
 # Trained-model artifacts and experiment outputs
 *.joblib
