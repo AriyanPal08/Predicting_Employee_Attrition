@@ -26,6 +26,14 @@ credentials/
 # Jupyter temporary files
 .ipynb_checkpoints/
 .jupyter/
+*.ipynb~
+*.ipynb.bak
+*.nbconvert.ipynb
+
+# Editor temporary files
+*.swp
+*.swo
+*~
 
 # Temporary and generated project files
 tmp/
