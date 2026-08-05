@@ -40,6 +40,7 @@ tmp/
 outputs/
 reports/_build/
 *.log
+*.pdf
 
 # Local dataset files
 *.csv
