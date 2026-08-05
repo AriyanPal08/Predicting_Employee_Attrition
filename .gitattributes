@@ -1,2 +1,24 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Keep source and project documentation consistently text-based.
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.ipynb text eol=lf linguist-generated=false
+
+# Treat common data, model, and report artifacts as binary.
+*.csv -text
+*.tsv -text
+*.parquet -text
+*.joblib -text
+*.pkl -text
+*.pickle -text
+*.pdf -text
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
