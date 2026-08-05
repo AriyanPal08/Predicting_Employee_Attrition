@@ -1,0 +1,33 @@
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.secret
+*.secrets
+*api_key*
+*apikey*
+*token*
+*password*
+secrets/
+credentials/
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Local dataset files
+*.csv
+
+# Node.js dependencies
+node_modules/
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
