@@ -1,238 +1,219 @@
 # Predicting Employee Attrition Using Supervised Learning
 
-## Project Report
-
----
-
-**Student Name:** [Your Name]
-**Student ID:** [Your Student ID]
-**Course:** [Course Name]
-**Date:** [Submission Date]
+**Student:** Ariyan Pal | **Student ID:** 2025EB1100270
+**Course:** [Course Name] | **Date:** [Submission Date]
 
 ---
 
 ## 1. Introduction
 
-Employee attrition — the voluntary departure of employees from an organisation — imposes significant costs through recruitment, onboarding, and the loss of institutional knowledge. Identifying employees who are likely to leave enables an organisation's Human Resources (HR) department to intervene proactively with targeted retention strategies.
+Employee attrition -- the voluntary departure of employees -- imposes significant costs through recruitment, onboarding, and the loss of institutional knowledge. Identifying employees likely to leave enables HR to intervene proactively with targeted retention strategies.
 
-This project applies supervised classification to the IBM HR Analytics Employee Attrition dataset. The objective is to train and evaluate multiple machine learning models that predict whether an employee will leave the organisation, based on demographic, compensation, satisfaction, and tenure-related attributes. The binary target variable is `Attrition`, where `Yes` (encoded as 1) indicates the employee left and `No` (encoded as 0) indicates the employee stayed. A fixed `random_state=42` is used throughout for full reproducibility.
+This project applies supervised classification to the IBM HR Analytics Employee Attrition dataset. The objective is to train and evaluate multiple models that predict whether an employee will leave, based on demographic, compensation, satisfaction, and tenure-related attributes. The binary target variable is `Attrition` (Yes = 1, No = 0). A fixed `random_state = 42` is used throughout for reproducibility.
 
 ---
 
-## 2. Dataset Overview and Exploratory Analysis (Task 1)
+## 2. Dataset Overview and Exploratory Analysis
 
 ### 2.1 Dataset Dimensions
 
-The dataset contains **1,470 employees** and **35 columns** (1 target + 34 predictor features). Of these, **26 are numerical** and **8 are categorical** predictor features. The dataset has **zero missing values** and **zero fully duplicated rows**, which eliminates the need for imputation or deduplication.
+The dataset contains **1,470 employees** and **35 columns** (1 target + 34 predictor features): 26 numerical and 8 categorical. The dataset has **zero missing values** and **zero duplicated rows**.
 
 ### 2.2 Target Class Distribution
 
-| Attrition Class | Employee Count | Percentage |
-|:----------------|---------------:|-----------:|
-| No (0)          | 1,233          | 83.88%     |
-| Yes (1)         | 237            | 16.12%     |
+| Class | Count | Percentage |
+|-------|-------|-----------|
+| No (0) | 1,233 | 83.88% |
+| Yes (1) | 237 | 16.12% |
 
-The target is **imbalanced**: only 16.12% of employees experienced attrition. This imbalance means that a naïve classifier predicting "No" for every employee would achieve approximately 84% accuracy while failing to identify any departing employee. Consequently, accuracy alone is insufficient; Precision, Recall, F1-score, and ROC-AUC are essential for meaningful evaluation.
+The target is **imbalanced**: only 16.12% of employees experienced attrition. A naive classifier predicting "No" for every employee would achieve ~84% accuracy while failing to identify any departing employee. Consequently, accuracy alone is insufficient; Precision, Recall, F1-score, and ROC-AUC are essential.
 
-![Target Class Distribution](charts/chart_target_distribution.png)
+![Target Class Distribution](charts/target_distribution.png)
 
-### 2.3 Constant-Value Columns
+### 2.3 Key Exploratory Findings
 
-Three columns were identified as having a single constant value across all 1,470 employees:
+**Constant-value columns:** `EmployeeCount` (1), `Over18` ('Y'), `StandardHours` (80) carry no predictive information.
 
-| Column          | Constant Value | Reason for Removal                          |
-|:----------------|:--------------:|:--------------------------------------------|
-| EmployeeCount   | 1              | Identical for every employee; no variance    |
-| Over18          | Y              | Identical for every employee; no variance    |
-| StandardHours   | 80             | Identical for every employee; no variance    |
+**Numerical features by attrition class:**
 
-These columns carry zero predictive information and were flagged for removal during preprocessing.
+![Numerical Feature Distributions by Attrition Class](charts/numerical_boxplots.png)
 
-### 2.4 Key Exploratory Observations
+Employees who left tend to have lower MonthlyIncome, fewer TotalWorkingYears, and fewer YearsAtCompany. These differences suggest that compensation and tenure may provide predictive signal for classification.
 
-Comparing group means by attrition class revealed meaningful associations (not causal claims):
+**Categorical attrition rates:**
 
-- **MonthlyIncome:** Employees who left earned an average of **\$4,787.09**, compared with **\$6,832.74** for those who stayed — a difference of roughly \$2,046.
-- **Age:** The average age of departing employees was **33.61 years**, versus **37.56 years** for those who stayed.
-- **TotalWorkingYears:** Departing employees had an average of **8.24** total working years, compared with **11.86** for non-departing employees.
-- **OverTime:** Among employees who worked overtime, the attrition rate was **30.53%**, nearly three times the **10.44%** rate observed for employees who did not work overtime.
+![Categorical Attrition Rates](charts/categorical_attrition_rates.png)
+
+OverTime shows a strong association with attrition: employees who work overtime have an observed attrition rate approximately three times higher than those who do not. No single numerical feature has a high individual correlation with attrition, reinforcing the need for multivariate classification models.
 
 ---
 
-## 3. Data Preprocessing (Task 2)
+## 3. Data Preprocessing
 
-All preprocessing decisions are explained and justified below. Critically, all transformations were fitted exclusively on the training set and then applied to the test set, preventing data leakage.
+All preprocessing transformations are fitted using the training data only and then applied to the test data, preventing information leakage.
 
-### 3.1 Missing Values
+| Step | Action |
+|------|--------|
+| Missing values | None found; no imputation |
+| Dropped columns | `EmployeeCount`, `Over18`, `StandardHours` (constant), `EmployeeNumber` (identifier) |
+| Target encoding | No = 0, Yes = 1 |
+| Train-test split | 80/20 stratified, `random_state=42` |
+| Categorical encoding | One-hot encoding (7 features to 28 binary columns) |
+| Numerical scaling | Standard scaling (23 features) |
+| Final feature count | **51** processed features |
+| Leakage prevention | Preprocessor fitted on training data only; `Pipeline` used for CV |
 
-A reconfirmation check verified **zero missing values** across all columns. Therefore, no imputation strategy was required.
+**Partitions:**
 
-### 3.2 Column Removal
+| Partition | Shape | Class 1 Count | Class 1 % |
+|-----------|-------|---------------|-----------|
+| Training | 1,176 x 30 | 190 | 16.16% |
+| Test | 294 x 30 | 47 | 15.99% |
 
-Four columns were removed before modelling:
-
-| Column Dropped  | Reason                                                                |
-|:----------------|:----------------------------------------------------------------------|
-| EmployeeCount   | Constant value (1 for all rows); provides no discriminative power     |
-| Over18          | Constant value ("Y" for all rows); provides no discriminative power   |
-| StandardHours   | Constant value (80 for all rows); provides no discriminative power    |
-| EmployeeNumber  | Unique identifier (1,470 unique values); identifies rows, not traits  |
-
-After removal, the feature matrix contained **30 predictor columns**.
-
-### 3.3 Target Encoding
-
-The target column `Attrition` was mapped from string labels to binary integers: `No → 0`, `Yes → 1`. The original class counts were preserved: 1,233 instances of class 0 and 237 instances of class 1.
-
-### 3.4 Train–Test Split
-
-An **80/20 stratified split** was applied with `random_state=42`. Stratification ensures both partitions preserve the original minority-class proportion.
-
-| Partition | Shape (rows × raw features) | Class 0 (No) | Class 1 (Yes) | Class 1 % |
-|:----------|:---------------------------:|--------------:|---------------:|----------:|
-| Training  | 1,176 × 30                  | 986           | 190            | 16.16%    |
-| Test      | 294 × 30                    | 247           | 47             | 15.99%    |
-
-### 3.5 Feature Transformation
-
-A `ColumnTransformer` was used to apply two transformations (fitted on training data only):
-
-1. **One-Hot Encoding** was applied to **7 nominal categorical features** (`BusinessTravel`, `Department`, `EducationField`, `Gender`, `JobRole`, `MaritalStatus`, `OverTime`) with `handle_unknown='ignore'` for robustness.
-2. **Standard Scaling** was applied to all **23 numerical features** to ensure zero mean and unit variance, which is critical for scale-sensitive models such as Logistic Regression.
-
-### 3.6 Final Processed Shapes
-
-| Data Object          | Shape          |
-|:---------------------|:--------------:|
-| X_train_processed    | (1,176 × 51)   |
-| X_test_processed     | (294 × 51)     |
-| y_train              | (1,176,)       |
-| y_test               | (294,)         |
-
-The expansion from 30 raw features to 51 processed features results from one-hot encoding of the 7 categorical variables into 28 binary columns, combined with the 23 scaled numerical features.
+For cross-validation, a `sklearn.pipeline.Pipeline` wraps the `ColumnTransformer` and each classifier, ensuring that encoding and scaling are fitted within each CV fold independently.
 
 ---
 
-## 4. Model Development (Task 3)
+## 4. Model Development
 
-Four classification models were trained on the processed training data. All models use `random_state=42`.
+Four classification models were trained. All use `random_state=42`.
 
-### 4.1 Model 1 — Logistic Regression
-
-A linear binary classifier. Key hyperparameters: `solver='lbfgs'`, `max_iter=1000`, `C=1.0` (default regularisation). The LBFGS solver is appropriate for binary classification with L2 penalty. The increased `max_iter` ensures convergence on 51 features.
-
-### 4.2 Model 2 — Decision Tree
-
-A rule-based classifier. Key hyperparameters: `criterion='gini'`, `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5`. The depth and minimum-sample limits deliberately constrain tree complexity to reduce overfitting to small training subgroups.
-
-### 4.3 Model 3 — Random Forest
-
-An ensemble of 300 decision trees. Key hyperparameters: `n_estimators=300`, `criterion='gini'`, `max_depth=10`, `min_samples_split=10`, `min_samples_leaf=4`, `class_weight='balanced'`. The `balanced` class weight adjusts for the under-represented attrition class by increasing its effective weight during training.
-
-### 4.4 Model 4 — Bagging Classifier
-
-An ensemble of 100 bootstrap-aggregated decision trees. Base estimator hyperparameters mirror the standalone Decision Tree: `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5`. Bagging parameters: `max_samples=1.0`, `max_features=1.0`. Bagging reduces the variance of individual trees by averaging across bootstrap samples.
+| Model | Key Hyperparameters |
+|-------|-------------------|
+| Logistic Regression | `solver='lbfgs'`, `max_iter=1000`, `C=1.0` |
+| Decision Tree | `criterion='gini'`, `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5` |
+| Random Forest | `n_estimators=300`, `max_depth=10`, `min_samples_split=10`, `min_samples_leaf=4`, `class_weight='balanced'` |
+| Bagging Classifier | `n_estimators=100`, base tree: `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5` |
 
 ---
 
-## 5. Model Evaluation and Comparison (Task 4)
+## 5. Cross-Validation Results
 
-### 5.1 Comparison Table
+Generalisation was assessed using **5-fold stratified cross-validation** (`StratifiedKFold`, `shuffle=True`, `random_state=42`). Preprocessing was performed inside each fold via Pipeline to prevent leakage.
 
-All metrics are computed on the **held-out test set** (294 employees, 47 attrition cases). The positive class is 1 (attrition). ROC-AUC is calculated from probability scores, not class labels.
+| Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
+|-------|----------|-----------|--------|----------|---------|
+| **Logistic Regression** | **0.8903 +/- 0.0191** | **0.7763 +/- 0.0744** | **0.4421 +/- 0.0962** | **0.5610 +/- 0.0977** | **0.8392 +/- 0.0289** |
+| Random Forest | 0.8648 +/- 0.0158 | 0.6444 +/- 0.1030 | 0.3842 +/- 0.1099 | 0.4710 +/- 0.0929 | 0.8092 +/- 0.0317 |
+| Bagging Classifier | 0.8588 +/- 0.0151 | 0.7269 +/- 0.1312 | 0.2158 +/- 0.0805 | 0.3239 +/- 0.1001 | 0.7854 +/- 0.0356 |
+| Decision Tree | 0.8393 +/- 0.0092 | 0.5008 +/- 0.0583 | 0.2684 +/- 0.0714 | 0.3465 +/- 0.0679 | 0.6695 +/- 0.0805 |
 
-| Model               | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
-|:---------------------|:--------:|:---------:|:------:|:--------:|:-------:|
+![CV Performance Comparison](charts/cv_performance.png)
+
+Logistic Regression achieves the highest CV F1-score (0.5610), CV ROC-AUC (0.8392), and CV Recall (0.4421), confirming it as the strongest model across the primary evaluation metrics. Random Forest ranks second with CV F1 of 0.4710 and ROC-AUC of 0.8092.
+
+---
+
+## 6. Test-Set Evaluation
+
+After model selection via CV, all models were evaluated once on the held-out test set (294 employees, 47 attrition cases).
+
+| Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
+|-------|----------|-----------|--------|----------|---------|
 | **Logistic Regression** | **0.8605** | **0.6154** | 0.3404 | **0.4384** | **0.8115** |
-| Random Forest        | 0.8367   | 0.4857    | **0.3617** | 0.4146   | 0.7977  |
-| Decision Tree        | 0.8367   | 0.4737    | 0.1915 | 0.2727   | 0.6824  |
-| Bagging Classifier   | 0.8367   | 0.4667    | 0.1489 | 0.2258   | 0.7553  |
+| Random Forest | 0.8367 | 0.4857 | **0.3617** | 0.4146 | 0.7977 |
+| Decision Tree | 0.8367 | 0.4737 | 0.1915 | 0.2727 | 0.6824 |
+| Bagging Classifier | 0.8367 | 0.4667 | 0.1489 | 0.2258 | 0.7553 |
 
-*Table sorted by F1-score (descending). Bold indicates the best score per metric.*
+### Confusion Matrices
 
-![Model Comparison – All Evaluation Metrics](charts/chart_metrics_comparison.png)
+![Confusion Matrices](charts/confusion_matrices.png)
 
-### 5.2 Confusion Matrices
-
-| | Logistic Regression | Decision Tree | Random Forest | Bagging Classifier |
-|:---|:---:|:---:|:---:|:---:|
-| **True Negatives (TN)** | 237 | 237 | 229 | 239 |
-| **False Positives (FP)** | 10 | 10 | 18 | 8 |
-| **False Negatives (FN)** | 31 | 38 | 30 | 40 |
-| **True Positives (TP)** | 16 | 9 | 17 | 7 |
-
-![Confusion Matrices – All Four Models](charts/chart_confusion_matrices.png)
-
-### 5.3 Key Findings
-
-1. **Accuracy is misleading in isolation.** Three of the four models share the same accuracy (0.8367), yet their Recall values range from 0.1489 to 0.3617. The imbalanced target means that even a zero-skill classifier achieves ~84% accuracy by always predicting "No."
-
-2. **Logistic Regression leads on Precision and F1-Score.** When it predicts an employee will leave, it is correct 61.54% of the time — substantially higher than the other models (47–49%). This yields the highest F1-score (0.4384), reflecting the best balance of Precision and Recall.
-
-3. **Random Forest achieves the highest Recall.** It correctly identifies 17 of 47 departing employees (Recall = 0.3617), slightly above Logistic Regression's 16 (Recall = 0.3404). However, this comes at the cost of 18 false positives — the most of any model — which lowers its Precision.
-
-4. **Decision Tree and Bagging Classifier under-detect attrition.** They identify only 9 and 7 of the 47 actual attrition cases, respectively. Their very low Recall (0.1915 and 0.1489) makes them less suitable when minimising missed departures is a priority.
-
-5. **ROC-AUC confirms ranking ability.** Logistic Regression's ROC-AUC of 0.8115 indicates the strongest ability to rank attrition-prone employees above non-attrition employees across all classification thresholds.
+| | Logistic Regression | Decision Tree | Random Forest | Bagging |
+|---|---|---|---|---|
+| **TN** | 237 | 237 | 229 | 239 |
+| **FP** | 10 | 10 | 18 | 8 |
+| **FN** | 31 | 38 | 30 | 40 |
+| **TP** | 16 | 9 | 17 | 7 |
 
 ---
 
-## 6. Model Selection and Reflection (Task 5)
+## 7. Threshold Analysis
 
-### 6.1 Recommended Model
+At the default threshold of 0.50, all models show moderate-to-low recall. Using out-of-fold predictions from 5-fold CV (the test set was NOT used), the precision-recall trade-off was analysed for the two strongest models:
 
-**Logistic Regression** is recommended as the final model for deployment to the HR department.
+**Logistic Regression:**
 
-### 6.2 Full Justification
+| Threshold | Precision | Recall | F1-Score |
+|-----------|-----------|--------|----------|
+| 0.20 | 0.4281 | 0.7211 | 0.5373 |
+| 0.25 | 0.4741 | 0.6737 | 0.5565 |
+| 0.30 | 0.5374 | 0.6421 | 0.5851 |
+| **0.35** | **0.6203** | **0.6105** | **0.6154** |
+| 0.40 | 0.6753 | 0.5474 | 0.6047 |
+| 0.50 | 0.7850 | 0.4421 | 0.5657 |
+| 0.60 | 0.8395 | 0.3579 | 0.5018 |
 
-The recommendation is based on a multi-criteria assessment, not on any single metric:
+**Best F1 threshold: 0.35** (F1=0.6154, Precision=0.6203, Recall=0.6105)
 
-| Criterion | Logistic Regression Advantage |
-|:----------|:------------------------------|
-| **Precision (0.6154)** | Highest among all four models. When HR acts on a positive prediction, it is correct more often, reducing wasted retention interventions. |
-| **F1-Score (0.4384)** | Highest F1-score, indicating the best harmonic balance of Precision and Recall across models. |
-| **ROC-AUC (0.8115)** | Highest ROC-AUC, demonstrating the strongest probability-based ranking ability across all thresholds. |
-| **Accuracy (0.8605)** | Highest accuracy, although this metric is of secondary importance given the class imbalance. |
-| **Recall (0.3404)** | Second-highest (Random Forest: 0.3617), which is a known limitation discussed below. |
-| **Interpretability** | Produces one coefficient per feature, making it straightforward to explain which factors are associated with attrition risk to non-technical HR stakeholders. |
-| **Generalisation** | The simpler linear form is less prone to memorising training-set noise than tree-based ensembles with many parameters. |
-| **Deployment** | Computationally lightweight; easy to deploy, monitor, retrain, and audit in a production environment. |
+![Threshold Analysis](charts/threshold_analysis.png)
 
-The confusion matrix shows that Logistic Regression correctly identified **16 of the 47** employees who actually left, while incorrectly flagging only **10** employees who did not leave. It missed **31** departing employees. While this recall limitation is significant, the model's superior precision means that each positive prediction carries more credibility than those of competing models.
-
-### 6.3 Overfitting and Underfitting Discussion
-
-The available results are test-set metrics only; confirming overfitting definitively would require comparing training performance with cross-validation performance.
-
-- **Decision Tree** and **Bagging Classifier** show signs of **underfitting or overly conservative positive classification**. Their recall values (0.1915 and 0.1489) and F1-scores (0.2727 and 0.2258) are notably low. The strict depth and minimum-sample constraints (`max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5`) reduce variance but may prevent the models from capturing sufficient attrition-related patterns. The imbalanced target and the default 0.5 probability threshold further contribute to low recall.
-
-- **Random Forest** used `class_weight='balanced'` and a deeper tree (`max_depth=10`), which improved its recall to 0.3617. However, its accuracy, precision, F1-score, and ROC-AUC were all lower than Logistic Regression, suggesting that the added nonlinear flexibility did not yield a stronger overall result in this configuration.
-
-- **Logistic Regression** achieved the best test-set F1-score and ROC-AUC, providing no direct evidence of overfitting from the test set alone. Its linear formulation acts as an implicit regulariser. However, cross-validation is necessary to confirm whether these results generalise beyond this particular 80/20 split.
-
-### 6.4 Two Suggested Improvements
-
-1. **Stratified cross-validation with threshold tuning.** Replacing the single train–test split with stratified k-fold cross-validation (e.g., 5-fold or 10-fold) would provide a more reliable estimate of generalisation error. Additionally, tuning the classification probability threshold — particularly for Logistic Regression — could improve Recall if HR determines that identifying more potential leavers outweighs the cost of additional false-positive retention interventions.
-
-2. **Feature engineering and additional data sources.** Constructing carefully justified derived features — such as income-to-job-level ratios, tenure-to-age ratios, or satisfaction composite scores — could provide the models with more discriminative predictors. If additional HR data (e.g., exit interview themes, engagement survey scores) is available at prediction time and permissible to use, incorporating it may further improve the models' ability to distinguish between employees likely and unlikely to leave.
+Lowering the threshold from 0.50 to 0.35 increases Logistic Regression's validation recall from 0.44 to 0.61, while maintaining precision above 0.62. The optimal threshold depends on the relative business cost of missing a departure (false negative) versus an unnecessary intervention (false positive).
 
 ---
 
-## 7. Conclusion
+## 8. Model Selection and Justification
 
-This project followed a structured supervised-learning workflow — from exploratory analysis and preprocessing through model development, evaluation, and selection — to predict employee attrition using the IBM HR Analytics dataset (1,470 employees, 51 processed features after encoding and scaling).
+### Selected Model: Logistic Regression
 
-Four classification models were trained and evaluated: Logistic Regression, Decision Tree, Random Forest, and Bagging Classifier. **Logistic Regression** was selected as the recommended model based on its leading performance in Precision (0.6154), F1-score (0.4384), ROC-AUC (0.8115), and Accuracy (0.8605), combined with its interpretability and deployment simplicity.
+Based on the multi-criteria analysis, Logistic Regression is selected as the preferred candidate:
 
-The primary limitation across all models is moderate-to-low Recall, meaning a substantial proportion of actual attrition cases remain undetected at the default classification threshold. Future work should address this through cross-validated threshold optimisation and richer feature engineering, enabling more complete identification of at-risk employees.
+| Criterion | Logistic Regression | Random Forest | Decision Tree | Bagging |
+|-----------|-------------------|---------------|---------------|---------|
+| CV F1 (mean) | **0.5610** | 0.4710 | 0.3465 | 0.3239 |
+| CV ROC-AUC (mean) | **0.8392** | 0.8092 | 0.6695 | 0.7854 |
+| CV Recall (mean) | **0.4421** | 0.3842 | 0.2684 | 0.2158 |
+| CV F1 (SD) | 0.0977 | 0.0929 | **0.0679** | 0.1001 |
+| Test F1 | **0.4384** | 0.4146 | 0.2727 | 0.2258 |
+| Test ROC-AUC | **0.8115** | 0.7977 | 0.6824 | 0.7553 |
+| Interpretability | High | Medium | High | Medium |
+| Deployment | Simple | Complex | Simple | Complex |
+
+### Generalisation Analysis
+
+| Model | CV F1 | Test F1 | Diff | CV AUC | Test AUC | Diff |
+|-------|-------|---------|------|--------|----------|------|
+| Logistic Regression | 0.5610 | 0.4384 | -0.1226 | 0.8392 | 0.8115 | -0.0277 |
+| Random Forest | 0.4710 | 0.4146 | -0.0564 | 0.8092 | 0.7977 | -0.0115 |
+| Decision Tree | 0.3465 | 0.2727 | -0.0738 | 0.6695 | 0.6824 | +0.0129 |
+| Bagging Classifier | 0.3239 | 0.2258 | -0.0981 | 0.7854 | 0.7553 | -0.0301 |
+
+All models show a modest drop between CV and test F1 performance, which is expected given the small test set (47 positive cases). ROC-AUC differences are small, suggesting consistent probability-ranking ability. None of the models exhibit severe overfitting.
+
+### Recall Limitation
+
+All models show moderate-to-low recall at the default 0.5 threshold. The threshold analysis demonstrates that recall can be improved significantly (from 0.44 to 0.61 for Logistic Regression) by lowering the threshold to 0.35, at the cost of reduced precision. The appropriate threshold should be determined by the organisation based on the relative cost of missing a departure versus an unnecessary intervention.
+
+No explicit business cost matrix was provided, so this analysis uses standard classification metrics rather than assigning arbitrary monetary costs.
 
 ---
 
-## 8. References
+## 9. Limitations and Future Improvements
 
-1. IBM HR Analytics Employee Attrition Dataset — Kaggle. Available at: https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset
-2. Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. *Journal of Machine Learning Research*, 12, pp. 2825–2830.
+**Limitations:**
+1. The target class is imbalanced (16% positive), constraining minority-class recall.
+2. No explicit business cost matrix was available to optimise the classification threshold.
+3. The dataset contains 1,470 employees -- a moderate size that limits CV statistical power.
+4. Feature engineering was not explored; models use original features only.
+5. The selected model is a preferred candidate among evaluated alternatives, not a validated production-ready system.
+
+**Suggested improvements:**
+1. **Threshold optimisation with business input:** Define the relative cost of false negatives versus false positives and select the threshold that minimises expected cost.
+2. **Feature engineering:** Construct derived features such as income-to-job-level ratios or satisfaction composite scores. Additional HR data could improve prediction if available at inference time.
 
 ---
 
-*All numerical results, metrics, and confusion matrix values reported in this document are taken directly from the executed Jupyter notebook. No values have been fabricated or estimated.*
+## 10. Conclusion
+
+This project followed a structured supervised-learning workflow to predict employee attrition using the IBM HR Analytics dataset (1,470 employees, 51 processed features). Four classification models were trained and evaluated using both 5-fold stratified cross-validation and a held-out test set.
+
+**Logistic Regression** was selected as the preferred model based on its leading performance across all primary CV metrics: F1-score (0.5610), ROC-AUC (0.8392), Recall (0.4421), and Precision (0.7763), combined with its interpretability and deployment simplicity.
+
+The primary limitation is moderate recall at the default 0.5 threshold. The threshold analysis demonstrates that lowering the threshold to 0.35 substantially improves recall (to 0.6105) with an F1-score of 0.6154. Future work should focus on threshold optimisation with business input and feature engineering.
+
+---
+
+## References
+
+1. IBM HR Analytics Employee Attrition Dataset. Kaggle. Available at: https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset
+2. Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR, 12, pp. 2825-2830.
