@@ -32,7 +32,7 @@ The target is **imbalanced**: only 16.12% of employees experienced attrition. A 
 
 ### 2.3 Key Exploratory Findings
 
-**Constant-value columns:** `EmployeeCount` (1), `Over18` ('Y'), `StandardHours` (80) carry no predictive information.
+**Constant-value columns:** `EmployeeCount` (1), `Over18` ('Y'), `StandardHours` (80) carry no predictive information and were removed.
 
 **Numerical features by attrition class:**
 
@@ -76,11 +76,11 @@ For cross-validation, a `sklearn.pipeline.Pipeline` wraps the `ColumnTransformer
 
 ## 4. Model Development
 
-Four classification models were trained. All use `random_state=42`.
+Four classification models were trained. All use `random_state=42`. To directly address the severe class imbalance natively, **Logistic Regression** and **Random Forest** were both configured with `class_weight='balanced'`.
 
 | Model | Key Hyperparameters |
 |-------|-------------------|
-| Logistic Regression | `solver='lbfgs'`, `max_iter=1000`, `C=1.0` |
+| Logistic Regression | `solver='lbfgs'`, `max_iter=1000`, `C=1.0`, `class_weight='balanced'` |
 | Decision Tree | `criterion='gini'`, `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5` |
 | Random Forest | `n_estimators=300`, `max_depth=10`, `min_samples_split=10`, `min_samples_leaf=4`, `class_weight='balanced'` |
 | Bagging Classifier | `n_estimators=100`, base tree: `max_depth=5`, `min_samples_split=10`, `min_samples_leaf=5` |
@@ -93,14 +93,14 @@ Generalisation was assessed using **5-fold stratified cross-validation** (`Strat
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
 |-------|----------|-----------|--------|----------|---------|
-| **Logistic Regression** | **0.8903 +/- 0.0191** | **0.7763 +/- 0.0744** | **0.4421 +/- 0.0962** | **0.5610 +/- 0.0977** | **0.8392 +/- 0.0289** |
+| **Logistic Regression** | 0.7534 +/- 0.0309 | 0.3721 +/- 0.0379 | **0.7368 +/- 0.0623** | **0.4925 +/- 0.0337** | **0.8273 +/- 0.0283** |
 | Random Forest | 0.8648 +/- 0.0158 | 0.6444 +/- 0.1030 | 0.3842 +/- 0.1099 | 0.4710 +/- 0.0929 | 0.8092 +/- 0.0317 |
 | Bagging Classifier | 0.8588 +/- 0.0151 | 0.7269 +/- 0.1312 | 0.2158 +/- 0.0805 | 0.3239 +/- 0.1001 | 0.7854 +/- 0.0356 |
 | Decision Tree | 0.8393 +/- 0.0092 | 0.5008 +/- 0.0583 | 0.2684 +/- 0.0714 | 0.3465 +/- 0.0679 | 0.6695 +/- 0.0805 |
 
 ![CV Performance Comparison](charts/cv_performance.png)
 
-Logistic Regression achieves the highest CV F1-score (0.5610), CV ROC-AUC (0.8392), and CV Recall (0.4421), confirming it as the strongest model across the primary evaluation metrics. Random Forest ranks second with CV F1 of 0.4710 and ROC-AUC of 0.8092.
+By balancing the loss function, **Logistic Regression** achieves a massive increase in Recall (0.7368) compared to the unweighted trees (e.g. Decision Tree at 0.2684). It also secures the highest CV F1-score (0.4925) and CV ROC-AUC (0.8273), confirming it as the strongest model for detecting departing employees.
 
 ---
 
@@ -110,8 +110,8 @@ After model selection via CV, all models were evaluated once on the held-out tes
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
 |-------|----------|-----------|--------|----------|---------|
-| **Logistic Regression** | **0.8605** | **0.6154** | 0.3404 | **0.4384** | **0.8115** |
-| Random Forest | 0.8367 | 0.4857 | **0.3617** | 0.4146 | 0.7977 |
+| **Logistic Regression** | 0.7517 | 0.3488 | **0.6383** | **0.4511** | **0.8032** |
+| Random Forest | 0.8367 | 0.4857 | 0.3617 | 0.4146 | 0.7977 |
 | Decision Tree | 0.8367 | 0.4737 | 0.1915 | 0.2727 | 0.6824 |
 | Bagging Classifier | 0.8367 | 0.4667 | 0.1489 | 0.2258 | 0.7553 |
 
@@ -121,95 +121,108 @@ After model selection via CV, all models were evaluated once on the held-out tes
 
 | | Logistic Regression | Decision Tree | Random Forest | Bagging |
 |---|---|---|---|---|
-| **TN** | 237 | 237 | 229 | 239 |
-| **FP** | 10 | 10 | 18 | 8 |
-| **FN** | 31 | 38 | 30 | 40 |
-| **TP** | 16 | 9 | 17 | 7 |
+| **TN** | 191 | 237 | 229 | 239 |
+| **FP** | 56 | 10 | 18 | 8 |
+| **FN** | 17 | 38 | 30 | 40 |
+| **TP** | 30 | 9 | 17 | 7 |
 
 ---
 
-## 7. Threshold Analysis
+## 7. Model Interpretation
 
-At the default threshold of 0.50, all models show moderate-to-low recall. Using out-of-fold predictions from 5-fold CV (the test set was NOT used), the precision-recall trade-off was analysed for the two strongest models:
+One of the primary benefits of Logistic Regression is its direct interpretability. The model assigns a coefficient to each feature, and the exponentiated coefficient (Odds Ratio) quantifies the multiplicative impact on the odds of attrition.
 
-**Logistic Regression:**
+**Top 10 Features by Absolute Coefficient:**
+
+| Feature | Coefficient | Odds Ratio | Interpretation |
+|---------|-------------|------------|----------------|
+| `JobRole_Research Director` | -1.4657 | 0.2309 | Being a Research Director decreases the odds of attrition by ~77%. |
+| `JobRole_Laboratory Technician` | 1.1943 | 3.3013 | Being a Lab Tech increases the odds of attrition by ~3.3x. |
+| `JobRole_Sales Representative` | 1.1206 | 3.0667 | Being a Sales Rep increases the odds of attrition by ~3.0x. |
+| `BusinessTravel_Non-Travel` | -0.9938 | 0.3701 | Not travelling for business decreases the odds of attrition by ~63%. |
+| `OverTime_No` | -0.8928 | 0.4095 | Not working overtime decreases the odds of attrition by ~59%. |
+| `EducationField_Other` | -0.7981 | 0.4501 | Decreases attrition odds by ~55%. |
+| `BusinessTravel_Travel_Frequently` | 0.7875 | 2.1980 | Frequent travel increases attrition odds by ~2.2x. |
+| `OverTime_Yes` | 0.7615 | 2.1415 | Working overtime increases attrition odds by ~2.1x. |
+| `EducationField_Human Resources` | 0.7211 | 2.0567 | Increases attrition odds by ~2.0x. |
+| `JobRole_Healthcare Representative` | -0.6472 | 0.5235 | Decreases attrition odds by ~48%. |
+
+This table confirms that the model relies heavily on intuitive job roles, overtime, and travel frequency to make predictions, rather than opaque internal structures.
+
+---
+
+## 8. Threshold Analysis
+
+Using out-of-fold predictions from 5-fold CV (the test set was NOT used), the precision-recall trade-off was analysed. Because Logistic Regression already balances the classes internally (`class_weight='balanced'`), the default 0.50 threshold heavily favours recall (identifying most departing employees but increasing false alarms).
+
+**Logistic Regression Thresholds:**
 
 | Threshold | Precision | Recall | F1-Score |
 |-----------|-----------|--------|----------|
-| 0.20 | 0.4281 | 0.7211 | 0.5373 |
-| 0.25 | 0.4741 | 0.6737 | 0.5565 |
-| 0.30 | 0.5374 | 0.6421 | 0.5851 |
-| **0.35** | **0.6203** | **0.6105** | **0.6154** |
-| 0.40 | 0.6753 | 0.5474 | 0.6047 |
-| 0.50 | 0.7850 | 0.4421 | 0.5657 |
-| 0.60 | 0.8395 | 0.3579 | 0.5018 |
+| 0.40 | 0.3213 | 0.7947 | 0.4576 |
+| 0.45 | 0.3372 | 0.7579 | 0.4668 |
+| **0.50 (default)** | **0.3684** | **0.7368** | **0.4912** |
+| 0.55 | 0.3930 | 0.7053 | 0.5047 |
+| **0.60 (best F1)** | **0.4520** | **0.6684** | **0.5393** |
 
-**Best F1 threshold: 0.35** (F1=0.6154, Precision=0.6203, Recall=0.6105)
+**Best F1 threshold: 0.60** (F1=0.5393, Precision=0.4520, Recall=0.6684). 
 
 ![Threshold Analysis](charts/threshold_analysis.png)
 
-Lowering the threshold from 0.50 to 0.35 increases Logistic Regression's validation recall from 0.44 to 0.61, while maintaining precision above 0.62. The optimal threshold depends on the relative business cost of missing a departure (false negative) versus an unnecessary intervention (false positive).
+Increasing the threshold to 0.60 improves the F1 score by reducing the number of false positives that stem from the aggressively balanced loss function, while still maintaining strong recall (0.6684). The final deployed threshold depends entirely on the financial cost of a false positive vs a false negative.
 
 ---
 
-## 8. Model Selection and Justification
+## 9. Model Selection and Justification
 
-### Selected Model: Logistic Regression
+### Selected Model: Logistic Regression (with class_weight='balanced')
 
-Based on the multi-criteria analysis, Logistic Regression is selected as the preferred candidate:
+Based on the multi-criteria analysis, Logistic Regression is unequivocally selected as the best model for deployment:
 
 | Criterion | Logistic Regression | Random Forest | Decision Tree | Bagging |
 |-----------|-------------------|---------------|---------------|---------|
-| CV F1 (mean) | **0.5610** | 0.4710 | 0.3465 | 0.3239 |
-| CV ROC-AUC (mean) | **0.8392** | 0.8092 | 0.6695 | 0.7854 |
-| CV Recall (mean) | **0.4421** | 0.3842 | 0.2684 | 0.2158 |
-| CV F1 (SD) | 0.0977 | 0.0929 | **0.0679** | 0.1001 |
-| Test F1 | **0.4384** | 0.4146 | 0.2727 | 0.2258 |
-| Test ROC-AUC | **0.8115** | 0.7977 | 0.6824 | 0.7553 |
-| Interpretability | High | Medium | High | Medium |
+| CV F1 (mean) | **0.4925** | 0.4710 | 0.3465 | 0.3239 |
+| CV ROC-AUC (mean) | **0.8273** | 0.8092 | 0.6695 | 0.7854 |
+| CV Recall (mean) | **0.7368** | 0.3842 | 0.2684 | 0.2158 |
+| Test F1 | **0.4511** | 0.4146 | 0.2727 | 0.2258 |
+| Test ROC-AUC | **0.8032** | 0.7977 | 0.6824 | 0.7553 |
+| Interpretability | **High** | Medium | High | Medium |
 | Deployment | Simple | Complex | Simple | Complex |
+
+By utilising `class_weight='balanced'`, Logistic Regression accurately models the minority class, capturing 73.68% of departing employees during CV. In addition, its complete transparency via coefficient odds ratios ensures HR can understand *why* an employee is flagged.
 
 ### Generalisation Analysis
 
 | Model | CV F1 | Test F1 | Diff | CV AUC | Test AUC | Diff |
 |-------|-------|---------|------|--------|----------|------|
-| Logistic Regression | 0.5610 | 0.4384 | -0.1226 | 0.8392 | 0.8115 | -0.0277 |
+| Logistic Regression | 0.4925 | 0.4511 | -0.0414 | 0.8273 | 0.8032 | -0.0241 |
 | Random Forest | 0.4710 | 0.4146 | -0.0564 | 0.8092 | 0.7977 | -0.0115 |
 | Decision Tree | 0.3465 | 0.2727 | -0.0738 | 0.6695 | 0.6824 | +0.0129 |
 | Bagging Classifier | 0.3239 | 0.2258 | -0.0981 | 0.7854 | 0.7553 | -0.0301 |
 
-All models show a modest drop between CV and test F1 performance, which is expected given the small test set (47 positive cases). ROC-AUC differences are small, suggesting consistent probability-ranking ability. None of the models exhibit severe overfitting.
-
-### Recall Limitation
-
-All models show moderate-to-low recall at the default 0.5 threshold. The threshold analysis demonstrates that recall can be improved significantly (from 0.44 to 0.61 for Logistic Regression) by lowering the threshold to 0.35, at the cost of reduced precision. The appropriate threshold should be determined by the organisation based on the relative cost of missing a departure versus an unnecessary intervention.
-
-No explicit business cost matrix was provided, so this analysis uses standard classification metrics rather than assigning arbitrary monetary costs.
+Small differences between CV and test performance suggest consistent generalisation without severe overfitting. The modest drop in F1 is expected given the small test set size (47 positive cases).
 
 ---
 
-## 9. Limitations and Future Improvements
+## 10. Limitations and Future Improvements
 
 **Limitations:**
-1. The target class is imbalanced (16% positive), constraining minority-class recall.
-2. No explicit business cost matrix was available to optimise the classification threshold.
+1. The target class is severely imbalanced. While balancing the loss function (`class_weight='balanced'`) drastically improved recall, it dropped precision to ~0.37, increasing false alarms.
+2. No explicit business cost matrix was available to optimise the classification threshold for maximum ROI.
 3. The dataset contains 1,470 employees -- a moderate size that limits CV statistical power.
 4. Feature engineering was not explored; models use original features only.
-5. The selected model is a preferred candidate among evaluated alternatives, not a validated production-ready system.
 
 **Suggested improvements:**
-1. **Threshold optimisation with business input:** Define the relative cost of false negatives versus false positives and select the threshold that minimises expected cost.
-2. **Feature engineering:** Construct derived features such as income-to-job-level ratios or satisfaction composite scores. Additional HR data could improve prediction if available at inference time.
+1. **Financial Threshold Optimisation:** Define the exact dollar cost of a false negative (missed departure) versus a false positive (unnecessary intervention) and select the threshold that minimises net cost.
+2. **Feature engineering:** Construct derived features such as income-to-job-level ratios, tenure-to-age ratios, or satisfaction composite scores to improve the precision of the Logistic Regression model without sacrificing its interpretability.
 
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
-This project followed a structured supervised-learning workflow to predict employee attrition using the IBM HR Analytics dataset (1,470 employees, 51 processed features). Four classification models were trained and evaluated using both 5-fold stratified cross-validation and a held-out test set.
+This project successfully applied a supervised learning workflow to predict employee attrition. Four models were evaluated using strict 5-fold stratified cross-validation within data pipelines.
 
-**Logistic Regression** was selected as the preferred model based on its leading performance across all primary CV metrics: F1-score (0.5610), ROC-AUC (0.8392), Recall (0.4421), and Precision (0.7763), combined with its interpretability and deployment simplicity.
-
-The primary limitation is moderate recall at the default 0.5 threshold. The threshold analysis demonstrates that lowering the threshold to 0.35 substantially improves recall (to 0.6105) with an F1-score of 0.6154. Future work should focus on threshold optimisation with business input and feature engineering.
+**Logistic Regression (with class_weight='balanced')** was selected as the optimal model. It achieved the leading CV F1-score (0.4925), ROC-AUC (0.8273), and a highly actionable CV Recall of 0.7368. Additionally, the model provided perfect transparency, identifying roles like Laboratory Technician and Sales Representative, along with Overtime, as major drivers of attrition risk. Future work should focus on integrating a financial cost matrix to pick the perfect classification threshold.
 
 ---
 
